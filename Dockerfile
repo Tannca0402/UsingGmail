@@ -1,26 +1,31 @@
+FROM maven:3.9-eclipse-temurin-21 AS build
+
+WORKDIR /app
+
+# Copy Maven configuration
+COPY pom.xml .
+
+# Download dependencies
 RUN mvn dependency:go-offline
 
+# Copy source code
 COPY src ./src
 
+# Build WAR file
 RUN mvn clean package -DskipTests
 
 
-# =========================
-# Stage 2: Run Tomcat 11
-# =========================
-FROM tomcat:11-jdk17-temurin
+FROM tomcat:11-jdk21-temurin
 
-# Xóa web mặc định của Tomcat
-RUN rm -rf /usr/local/tomcat/webapps/ROOT
+# Remove default Tomcat applications
+RUN rm -rf /usr/local/tomcat/webapps/*
 
-# Copy file WAR vào Tomcat
-COPY --from=build /app/target/SQL-1.0-SNAPSHOT.war \
-    /usr/local/tomcat/webapps/ROOT.war
+# Copy WAR file to Tomcat
+COPY --from=build /app/target/*.war /usr/local/tomcat/webapps/ROOT.war
 
-# Render sử dụng port 10000
-RUN sed -i 's/port="8080"/port="10000"/' \
-    /usr/local/tomcat/conf/server.xml
+# Render uses port 8080
+EXPOSE 8080
 
-EXPOSE 10000
-
+# Start Tomcat
 CMD ["catalina.sh", "run"]
+
