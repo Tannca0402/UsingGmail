@@ -1,15 +1,37 @@
-FROM tomcat:10.1
+FROM maven:3.9-eclipse-temurin-21 AS build
 
-# Xóa các ứng dụng mặc định
+WORKDIR /app
+
+# Copy pom.xml trước để tận dụng Docker cache
+COPY pom.xml .
+
+# Tải dependency Maven
+RUN mvn dependency:go-offline
+
+# Copy source code
+COPY src ./src
+
+# Build WAR
+RUN mvn clean package -DskipTests
+
+
+# ==============================
+# Run Tomcat
+# ==============================
+FROM tomcat:11-jdk21-temurin
+
+# Tạo thư mục chứa database H2
+RUN mkdir -p /app/data
+
+# Xóa các ứng dụng mặc định của Tomcat
 RUN rm -rf /usr/local/tomcat/webapps/*
 
-# Đổi cổng shutdown mặc định thành -1 để vô hiệu hóa lệnh shutdown qua socket
-RUN sed -i 's/port="8005" shutdown="SHUTDOWN"/port="-1" shutdown="SHUTDOWN"/' /usr/local/tomcat/conf/server.xml
+# Copy WAR sau khi Maven build xong
+COPY --from=build /app/target/*.war \
+     /usr/local/tomcat/webapps/ROOT.war
 
-# Copy file WAR vào Tomcat
-COPY SQL-1.0-SNAPSHOT.war /usr/local/tomcat/webapps/ROOT.war
-
+# Tomcat chạy port 8080
 EXPOSE 8080
 
-# Chạy Tomcat ở chế độ foreground
+# Chạy Tomcat ở foreground
 CMD ["catalina.sh", "run"]
